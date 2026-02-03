@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
 import HologramOrb from "@/components/HologramOrb/HologramOrb";
-import { Mic, Send, Activity, Brain, Check, List, ChevronLeft, ChevronRight, X, Volume2, VolumeX, Network } from "lucide-react";
+import { Mic, Send, Activity, Brain, Check, List, ChevronLeft, ChevronRight, X, Volume2, VolumeX, Network, Video, StopCircle } from "lucide-react";
 import { useMemory } from "@/hooks/useMemory";
 import { useTTS } from "@/hooks/useTTS";
 import dynamic from "next/dynamic";
@@ -35,6 +35,11 @@ export default function DashboardPage() {
   const [isListening, setIsListening] = useState(false);
   const [isTaskPanelOpen, setIsTaskPanelOpen] = useState(false);
   
+  // Screen Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+
   // Mood State
   const [mood, setMood] = useState(80); // 0-100
   const [energy, setEnergy] = useState(65); // 0-100
@@ -183,6 +188,63 @@ export default function DashboardPage() {
     return null; // No local command found, proceed to LLM
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: 'screen' } as any,
+        audio: true
+      });
+
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      recordedChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, {
+          type: "video/webm"
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        document.body.appendChild(a);
+        a.style.display = "none";
+        a.href = url;
+        a.download = `recording-${Date.now()}.webm`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+        // Stop all tracks to clear the recording icon
+        stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+
+      // Handle user stopping via browser UI
+      stream.getVideoTracks()[0].onended = () => {
+         if (mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+         }
+      };
+
+    } catch (err) {
+      console.error("Error starting recording:", err);
+      // Fallback or notification could go here
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
   if (!config) return null;
 
   return (
@@ -267,6 +329,15 @@ export default function DashboardPage() {
               onClick={toggleMic}
             >
               {isListening ? <Activity size={20} /> : <Mic size={20} />}
+            </button>
+
+            <button
+               className={`${styles.micBtn} ${isRecording ? styles.recording : ''}`}
+               onClick={isRecording ? stopRecording : startRecording}
+               title={isRecording ? "Stop Recording" : "Record Screen"}
+               style={isRecording ? { background: 'rgba(255, 0, 60, 0.2)', borderColor: 'var(--neon-red)' } : {}}
+            >
+               {isRecording ? <StopCircle size={20} color="var(--neon-red)" /> : <Video size={20} />}
             </button>
             
             <input
