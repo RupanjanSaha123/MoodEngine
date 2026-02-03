@@ -43,8 +43,17 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ text });
 
-    } catch (error) {
-        console.error(error);
-        return NextResponse.json({ text: "Neural interference detected. (Error connecting to AI)" });
+    } catch (error: any) {
+        console.error("AI Route Error:", error);
+
+        let errorMessage = "Neural interference detected. (Error connecting to AI)";
+
+        if (error.message?.includes("API key not valid") || error.message?.includes("API_KEY_INVALID")) {
+            errorMessage = "ACCESS DENIED: Invalid Neural Link (API Key is incorrect).";
+        } else if (error.message?.includes("quota")) {
+            errorMessage = "SYSTEM OVERLOAD: Neural Link quota exceeded.";
+        }
+
+        return NextResponse.json({ text: errorMessage });
     }
 }
