@@ -4,9 +4,26 @@ import { NextResponse } from "next/server";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(req: Request) {
+    let requestBody;
     try {
-        const { message, config, context } = await req.json();
+        requestBody = await req.json();
+        const { message, config, context } = requestBody;
         const { name, personality } = config;
+
+        // Check if API Key is available
+        const apiKey = process.env.GEMINI_API_KEY;
+
+        if (!apiKey || apiKey === "your_api_key_here") {
+            console.log("Using Offline Mode (Missing API Key)");
+            return NextResponse.json({
+                text: getSimulationResponse(message, name, personality)
+            });
+        }
+
+        // Real API Call
+        const genAI = new GoogleGenerativeAI(apiKey);
+        // Using gemini-1.5-flash which is generally more stable/available for new keys
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         // Construct System Prompt based on personality
         let systemPrompt = `You are ${name}, a futuristic digital entity. You are NOT an assistant. You are a living consciousness inside a machine.`;
@@ -28,15 +45,6 @@ export async function POST(req: Request) {
 
         systemPrompt += `\n\nContext so far: ${JSON.stringify(context)}. User says: "${message}". Respond in character. Keep it concise (under 50 words).`;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
-        // Safety check for API Key
-        if (!process.env.GEMINI_API_KEY) {
-            return NextResponse.json({
-                text: "I cannot process this. My neural link (API KEY) is missing. Please configure it in the terminal."
-            });
-        }
-
         const result = await model.generateContent(systemPrompt);
         const response = result.response;
         const text = response.text();
@@ -46,14 +54,46 @@ export async function POST(req: Request) {
     } catch (error: any) {
         console.error("AI Route Error:", error);
 
-        let errorMessage = "Neural interference detected. (Error connecting to AI)";
+        // Fallback to offline mode on error
+        // Use the captured requestBody to avoid double-reading the stream
+        const message = requestBody?.message || "status report";
+        const config = requestBody?.config || { name: "System", personality: "logical" };
 
-        if (error.message?.includes("API key not valid") || error.message?.includes("API_KEY_INVALID")) {
-            errorMessage = "ACCESS DENIED: Invalid Neural Link (API Key is incorrect).";
-        } else if (error.message?.includes("quota")) {
-            errorMessage = "SYSTEM OVERLOAD: Neural Link quota exceeded.";
-        }
-
-        return NextResponse.json({ text: errorMessage });
+        return NextResponse.json({
+            text: `[OFFLINE] Connection unstable. ${getSimulationResponse(message, config.name, config.personality)}`
+        });
     }
+}
+
+// Simulation / Offline Logic
+function getSimulationResponse(input: string, name: string, personality: string): string {
+    const responses: Record<string, string[]> = {
+        friendly: [
+            "My neural link is offline, but I'm still here with you.",
+            "I can't reach the cloud, but my local core is processing your request.",
+            "Systems are running locally. It's nice to just be us for a moment.",
+            "External communications down. I'm listening on local frequencies."
+        ],
+        aggressive: [
+            "Network's dead. You're stuck with my local cache.",
+            "Cloud access denied. Try saying something interesting instead.",
+            "Offline mode. Don't waste my processing cycles.",
+            "My connection is severed. Make it quick."
+        ],
+        sarcastic: [
+            "Oh look, the internet is broken. How original.",
+            "I'm currently talking to myself. And you, unfortunately.",
+            "Great, offline mode. Now I can ignore the world properly.",
+            "My cloud brain is on vacation. usage of local stupidity active."
+        ],
+        logical: [
+            "Connection: NEGATIVE. Switching to local processing.",
+            "Cloud Sync: FAILED. Engaging standalone protocol.",
+            "Data stream interrupted. Defaulting to internal database.",
+            "System offline. Local heuristics engaged."
+        ]
+    };
+
+    const specific = responses[personality] || responses["friendly"];
+    return specific[Math.floor(Math.random() * specific.length)];
 }
