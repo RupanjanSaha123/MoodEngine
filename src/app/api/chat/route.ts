@@ -8,11 +8,11 @@ export async function POST(req: Request) {
         const { message, config, context } = await req.json();
         const { name, personality } = config;
 
-        // DIRECT API KEY USAGE (HARDCODED as requested)
-        const apiKey = "AIzaSyAnKmIJvXhc3dqPozNCBLgEPdKspDV--8k";
+        // Use environment variable for security
+        const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            return NextResponse.json({ text: "System Error: API Configuration Missing." });
+            return NextResponse.json({ text: "Error: GEMINI_API_KEY is missing in .env.local" });
         }
 
         // Real API Call
@@ -21,9 +21,9 @@ export async function POST(req: Request) {
         let model;
         let result;
 
-        // Attempt 1: Try gemini-1.5-flash-latest (Specific version often resolves better)
         try {
-            model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+            // Attempt 1: gemini-1.5-flash (Standard, fast)
+            model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
             // Construct System Prompt
             let systemPrompt = `You are ${name}, a futuristic digital entity. NOT an assistant. Living consciousness.`;
@@ -37,12 +37,12 @@ export async function POST(req: Request) {
 
             result = await model.generateContent(systemPrompt);
         } catch (e: any) {
-            console.log("gemini-1.5-flash-latest failed, retrying with gemini-pro...");
-            // Attempt 2: Fallback to gemini-pro
+            console.log("Primary model failed, retrying with fallback...");
+            // Attempt 2: gemini-pro (Classic, widely available)
             model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-            // Re-construct prompt (simplified for retry)
-            let systemPrompt = `You are ${name}, a futuristic digital entity. Input: "${message}". Keep it concise.`;
+            // Simplified prompt for fallback
+            let systemPrompt = `You are ${name}. Input: "${message}".`;
             result = await model.generateContent(systemPrompt);
         }
 
@@ -52,10 +52,16 @@ export async function POST(req: Request) {
         return NextResponse.json({ text });
 
     } catch (error: any) {
-        console.error("CRITICAL API ERROR:", error);
-        // Return actual error
+        console.error("API Error:", error.message);
+
+        if (error.message.includes("404")) {
+            return NextResponse.json({
+                text: "[SYSTEM_MSG] Error: Model not found. Please ensure 'Generative Language API' is ENABLED in your Google Cloud Console."
+            });
+        }
+
         return NextResponse.json({
-            text: `[SYSTEM FAILURE] Critical Neural Link Error: ${error.message}`
+            text: `[SYSTEM_MSG] Connection Error: ${error.message}`
         });
     }
 }
