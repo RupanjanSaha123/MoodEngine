@@ -21,7 +21,7 @@ export const supabase = isConfigured
     : createMockClient();
 
 function createMockClient() {
-    // console.warn("⚠️ Supabase is not configured using valid environment variables. Database features will be disabled.");
+    console.warn("⚠️ Supabase is not configured using valid environment variables. Database features will be disabled.");
 
     const noop = () => ({
         data: null,
