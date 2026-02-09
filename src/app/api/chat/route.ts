@@ -1,7 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const getApiKey = () =>
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+    "";
 
 export async function POST(req: Request) {
     try {
@@ -9,10 +13,13 @@ export async function POST(req: Request) {
         const { name, personality } = config;
 
         // Use environment variable for security
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = getApiKey();
 
         if (!apiKey) {
-            return NextResponse.json({ text: "Error: GEMINI_API_KEY is missing in .env.local" });
+            return NextResponse.json({
+                text:
+                    "Error: Missing Gemini API key. Set GEMINI_API_KEY (recommended) or GOOGLE_API_KEY in .env.local and restart the dev server."
+            });
         }
 
         // Real API Call
